@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>보드게임 시간 규칙 타이머</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px;
+        }
+        .settings {
+            background-color: #34495e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .timer-board {
+            display: flex;
+            gap: 30px;
+        }
+        .player-clock {
+            width: 250px;
+            height: 150px;
+            background-color: #ecf0f1;
+            color: #2c3e50;
+            border: 5px solid #bdc3c7;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 3em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .player-clock.active {
+            border-color: #e74c3c;
+            background-color: #fdf3f2;
+            box-shadow: 0 0 15px #e74c3c;
+        }
+        .sub-text {
+            font-size: 0.3em;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        .controls {
+            margin-top: 30px;
+        }
+        button, select, input {
+            padding: 10px 15px;
+            font-size: 1em;
+            margin: 5px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover { background-color: #bdc3c7; }
+        .btn-start { background-color: #2ecc71; color: white; }
+        .btn-start:hover { background-color: #27ae60; }
+    </style>
+</head>
+<body>
+
+    <div class="settings">
+        <label>규칙 선택:</label>
+        <select id="modeSelect">
+            <option value="byoyomi">초읽기 (Byo-yomi)</option>
+            <option value="fischer">피셔 방식 (Fischer Increment)</option>
+            <option value="delay">딜레이 방식 (Simple Delay)</option>
+        </select>
+        <br><br>
+        <label>기본 시간(초): <input type="number" id="mainTimeInput" value="30" style="width: 60px;"></label>
+        <label>추가/유예/초읽기 시간(초): <input type="number" id="extraTimeInput" value="10" style="width: 60px;"></label>
+    </div>
+
+    <div class="timer-board">
+        <div class="player-clock" id="p1Clock" onclick="switchTurn(1)">
+            <div id="p1Main">00:30</div>
+            <div id="p1Sub" class="sub-text">대기 중</div>
+        </div>
+        <div class="player-clock" id="p2Clock" onclick="switchTurn(2)">
+            <div id="p2Main">00:30</div>
+            <div id="p2Sub" class="sub-text">대기 중</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn-start" onclick="startGame()">게임 시작 (P1 먼저)</button>
+        <button onclick="pauseGame()">일시 정지</button>
+        <button onclick="resetGame()">초기화</button>
+    </div>
+
+    <script>
+        let timerInterval = null;
+        let mode = 'byoyomi';
+        let mainConfig = 30;
+        let extraConfig = 10;
+
+        let p1 = { main: 0, extra: 0 };
+        let p2 = { main: 0, extra: 0 };
+        let activePlayer = 0; // 1 or 2
+
+        function formatTime(seconds) {
+            let m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            let s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function updateDisplay() {
+            document.getElementById('p1Main').innerText = formatTime(p1.main);
+            document.getElementById('p2Main').innerText = formatTime(p2.main);
+
+            // 보조 시간(딜레이나 초읽기 카운트다운) 표시 업데이트
+            const updateSub = (p, elId) => {
+                let el = document.getElementById(elId);
+                if (p.main <= 0 && mode === 'byoyomi') {
+                    el.innerText = `초읽기: ${p.extra}초`;
+                    el.style.color = '#e74c3c';
+                } else if (mode === 'delay' && p.extra > 0) {
+                    el.innerText = `유예 시간: ${p.extra}초`;
+                    el.style.color = '#2980b9';
+                } else {
+                    el.innerText = '';
+                }
+            };
+
+            updateSub(p1, 'p1Sub');
+            updateSub(p2, 'p2Sub');
+
+            document.getElementById('p1Clock').classList.toggle('active', activePlayer === 1);
+            document.getElementById('p2Clock').classList.toggle('active', activePlayer === 2);
+        }
+
+        function applySettings() {
+            mode = document.getElementById('modeSelect').value;
+            mainConfig = parseInt(document.getElementById('mainTimeInput').value);
+            extraConfig = parseInt(document.getElementById('extraTimeInput').value);
+            
+            p1 = { main: mainConfig, extra: mode === 'byoyomi' ? extraConfig : 0 };
+            p2 = { main: mainConfig, extra: mode === 'byoyomi' ? extraConfig : 0 };
+        }
+
+        function resetGame() {
+            pauseGame();
+            applySettings();
+            activePlayer = 0;
+            updateDisplay();
+            document.getElementById('p1Sub').innerText = '대기 중';
+            document.getElementById('p2Sub').innerText = '대기 중';
+        }
+
+        function startGame() {
+            if (activePlayer === 0) {
+                applySettings();
+                activePlayer = 1;
+                // 딜레이 방식 첫 턴 시작 시 유예 시간 부여
+                if (mode === 'delay') p1.extra = extraConfig;
+            }
+            if (!timerInterval) {
+                timerInterval = setInterval(tick, 1000);
+            }
+            updateDisplay();
+        }
+
+        function pauseGame() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        function switchTurn(clickedPlayer) {
+            // 자신의 시계를 눌렀을 때만 턴이 넘어가도록 처리
+            if (activePlayer === 0 || activePlayer !== clickedPlayer) return;
+
+            let currentPlayerState = activePlayer === 1 ? p1 : p2;
+
+            // 1. 피셔 방식: 턴을 종료할 때 메인 시간에 보너스 추가
+            if (mode === 'fischer') {
+                currentPlayerState.main += extraConfig;
+            }
+
+            // 턴 교체
+            activePlayer = activePlayer === 1 ? 2 : 1;
+            let nextPlayerState = activePlayer === 1 ? p1 : p2;
+
+            // 2. 딜레이 방식: 턴 시작 시 유예 시간(Delay) 리셋
+            if (mode === 'delay') {
+                nextPlayerState.extra = extraConfig;
+            }
+            // 3. 초읽기 방식: 메인 시간을 다 썼다면, 턴 시작 시 초읽기 시간 리셋
+            if (mode === 'byoyomi' && nextPlayerState.main <= 0) {
+                nextPlayerState.extra = extraConfig;
+            }
+
+            updateDisplay();
+        }
+
+        function tick() {
+            let p = activePlayer === 1 ? p1 : p2;
+
+            if (mode === 'delay') {
+                // 딜레이 시간이 남아있으면 딜레이만 감소, 아니면 메인 시간 감소
+                if (p.extra > 0) p.extra--;
+                else p.main--;
+            } 
+            else if (mode === 'fischer') {
+                // 피셔는 무조건 메인 시간만 감소 (추가는 턴 전환 시 발생)
+                p.main--;
+            } 
+            else if (mode === 'byoyomi') {
+                // 메인 시간이 있으면 메인 감소, 없으면 초읽기 시간 감소
+                if (p.main > 0) {
+                    p.main--;
+                    if (p.main === 0) p.extra = extraConfig; // 메인 소진 즉시 초읽기 장전
+                } else {
+                    p.extra--;
+                }
+            }
+
+            // 시간 초과 처리
+            if (p.main <= 0 && (mode !== 'byoyomi' || p.extra < 0)) {
+                pauseGame();
+                updateDisplay();
+                alert(`Player ${activePlayer} 시간 초과로 패배!`);
+                return;
+            }
+
+            updateDisplay();
+        }
+
+        // 초기 화면 세팅
+        resetGame();
+    </script>
+</body>
+</html>
