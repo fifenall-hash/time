@@ -1,0 +1,17 @@
+{
+  "name": "보드게임 타이머",
+  "short_name": "타이머",
+  "description": "보드게임용 2인 초읽기/피셔/딜레이 타이머",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1e272e",
+  "theme_color": "#1e272e",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
