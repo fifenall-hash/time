@@ -8,7 +8,7 @@
     <!-- 아이콘 설정 -->
     <link rel="icon" href="icon.ico" type="image/x-icon">
     <link rel="icon" href="icon.png" type="image/png">
-    <link rel="apple-touch-icon" href="icon.png"> <!-- iOS 홈 화면 아이콘 -->
+    <link rel="apple-touch-icon" href="icon.png">
 
     <!-- PWA 매니페스트 및 테마 색상 -->
     <link rel="manifest" href="manifest.json">
@@ -243,10 +243,35 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(registration => console.log('Service Worker 등록 성공'))
                     .catch(error => console.log('Service Worker 등록 실패:', error));
             });
         }
+
+        // --- 화면 꺼짐 방지(Wake Lock) 기능 시작 ---
+        let wakeLock = null;
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('화면 꺼짐 방지가 활성화되었습니다.');
+                    
+                    wakeLock.addEventListener('release', () => {
+                        console.log('화면 꺼짐 방지가 해제되었습니다.');
+                    });
+                }
+            } catch (err) {
+                console.log(`Wake Lock Error: ${err.name}, ${err.message}`);
+            }
+        }
+
+        // 사용자가 다른 탭/앱으로 갔다가 다시 돌아왔을 때 화면 잠금 재활성화
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                await requestWakeLock();
+            }
+        });
+        // --- 화면 꺼짐 방지(Wake Lock) 기능 끝 ---
 
         let rule = 'byoyomi';
         let config = { main: 0, extra: 0, count: 0 };
@@ -292,6 +317,9 @@
             document.getElementById('timer-screen').style.display = 'flex';
             
             updateDisplay();
+
+            // 타이머 시작 시 화면 꺼짐 방지 요청
+            requestWakeLock();
         }
 
         function resetPlayers() {
@@ -314,6 +342,12 @@
             document.getElementById('pause-modal').style.display = 'none';
             document.getElementById('timer-screen').style.display = 'none';
             document.getElementById('settings-screen').style.display = 'flex';
+
+            // 설정 화면으로 돌아갈 때는 폰이 꺼질 수 있도록 Wake Lock 해제
+            if (wakeLock !== null) {
+                wakeLock.release()
+                    .then(() => { wakeLock = null; });
+            }
         }
 
         function tapArea(clickedPlayer) {
@@ -407,6 +441,12 @@
                 area.className = 'player-area loser';
                 document.getElementById(`p${activePlayer}-sub`).innerText = '시간 초과로 패배';
                 activePlayer = -1;
+
+                // 게임이 완전히 종료되었으므로 Wake Lock 해제
+                if (wakeLock !== null) {
+                    wakeLock.release()
+                        .then(() => { wakeLock = null; });
+                }
             }
         }
 
