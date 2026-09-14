@@ -101,9 +101,10 @@
             align-items: center;
             font-size: 5em;
             font-weight: bold;
-            transition: background-color 0.1s;
+            transition: background-color 0.1s, color 0.1s;
         }
 
+        /* 비활성 상태 (대기 중) */
         #p1-area {
             transform: rotate(180deg);
             background-color: #7f8c8d;
@@ -115,16 +116,19 @@
             color: rgba(255,255,255,0.5);
         }
 
+        /* 활성 상태 (진행 중) - 흰색 바탕, 검정 텍스트 */
         .player-area.active {
-            background-color: #0be881;
-            color: #1e272e;
+            background-color: #ffffff;
+            color: #000000;
         }
 
+        /* 시간 임박 / 초읽기 상태 (빨간색) */
         .player-area.danger {
             background-color: #ff3f34;
             color: white;
         }
 
+        /* 패배 상태 */
         .player-area.loser {
             background-color: #1e272e;
             color: #ff3f34;
@@ -239,7 +243,6 @@
     </div>
 
     <script>
-        // PWA 서비스 워커 등록
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
@@ -247,7 +250,6 @@
             });
         }
 
-        // --- 화면 꺼짐 방지(Wake Lock) 기능 시작 ---
         let wakeLock = null;
 
         async function requestWakeLock() {
@@ -265,13 +267,11 @@
             }
         }
 
-        // 사용자가 다른 탭/앱으로 갔다가 다시 돌아왔을 때 화면 잠금 재활성화
         document.addEventListener('visibilitychange', async () => {
             if (wakeLock !== null && document.visibilityState === 'visible') {
                 await requestWakeLock();
             }
         });
-        // --- 화면 꺼짐 방지(Wake Lock) 기능 끝 ---
 
         let rule = 'byoyomi';
         let config = { main: 0, extra: 0, count: 0 };
@@ -317,8 +317,6 @@
             document.getElementById('timer-screen').style.display = 'flex';
             
             updateDisplay();
-
-            // 타이머 시작 시 화면 꺼짐 방지 요청
             requestWakeLock();
         }
 
@@ -343,7 +341,6 @@
             document.getElementById('timer-screen').style.display = 'none';
             document.getElementById('settings-screen').style.display = 'flex';
 
-            // 설정 화면으로 돌아갈 때는 폰이 꺼질 수 있도록 Wake Lock 해제
             if (wakeLock !== null) {
                 wakeLock.release()
                     .then(() => { wakeLock = null; });
@@ -442,7 +439,6 @@
                 document.getElementById(`p${activePlayer}-sub`).innerText = '시간 초과로 패배';
                 activePlayer = -1;
 
-                // 게임이 완전히 종료되었으므로 Wake Lock 해제
                 if (wakeLock !== null) {
                     wakeLock.release()
                         .then(() => { wakeLock = null; });
