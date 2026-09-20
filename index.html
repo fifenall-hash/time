@@ -105,6 +105,7 @@
             transition: background 0.1s, color 0.1s;
             background: #7f8c8d;
             color: rgba(255,255,255,0.5);
+            position: relative;
         }
 
         #p1-area { transform: rotate(180deg); }
@@ -131,6 +132,14 @@
             margin-top: 10px;
             font-weight: normal;
             height: 30px;
+        }
+
+        /* 하단 고정 규칙 표시 텍스트 */
+        .rule-info {
+            font-size: 0.2em;
+            margin-top: 5px;
+            opacity: 0.6;
+            font-weight: 500;
         }
 
         .center-bar {
@@ -189,7 +198,7 @@
                     <option value="byoyomi">초읽기 (기본시간 먼저 소모)</option>
                     <option value="fischer">피셔 (턴당 시간 추가)</option>
                     <option value="delay">딜레이 (유예시간 동안 소모 없음)</option>
-                    <option value="tournament">오프라인 체스 대회 (지정 턴 도달 시 시간 추가)</option>
+                    <option value="tournament">체스 대회 (지정 턴 도달 시 시간 추가)</option>
                 </select>
             </div>
 
@@ -216,6 +225,7 @@
         <div class="player-area" id="p1-area" onmousedown="tapArea(1)" ontouchstart="tapArea(1)">
             <div class="time-display" id="p1-time">00:00</div>
             <div class="sub-info" id="p1-sub">터치하여 시작</div>
+            <div class="rule-info" id="p1-rule"></div>
         </div>
 
         <div class="center-bar">
@@ -225,6 +235,7 @@
         <div class="player-area" id="p2-area" onmousedown="tapArea(2)" ontouchstart="tapArea(2)">
             <div class="time-display" id="p2-time">00:00</div>
             <div class="sub-info" id="p2-sub">터치하여 시작</div>
+            <div class="rule-info" id="p2-rule"></div>
         </div>
     </div>
 
@@ -265,29 +276,47 @@
         let activePlayer = 0; 
         let timerInterval = null;
         let isPaused = false;
+        let lastRule = 'byoyomi'; // 폼 기본값 변경 감지용
 
-        // 규칙 변경 시 텍스트 및 입력창 상태 전환
+        // 규칙 변경 시 텍스트 및 입력창 기본값(대회 규정) 동적 전환
         function toggleByoyomiCount() {
             const select = document.getElementById('ruleSelect').value;
             const countGroup = document.getElementById('byoyomiCountGroup');
             const countLabel = document.getElementById('countLabel');
             const extraLabel = document.getElementById('extraTimeLabel');
+            const mainInput = document.getElementById('mainTime');
+            const extraInput = document.getElementById('extraTime');
+            const countInput = document.getElementById('byoyomiCount');
 
             if (select === 'byoyomi') {
                 countGroup.style.display = 'flex';
                 countLabel.innerText = '초읽기 횟수';
                 extraLabel.innerText = '초읽기 시간 (초)';
+                if (lastRule !== 'byoyomi') {
+                    mainInput.value = 300; extraInput.value = 30; countInput.value = 3;
+                }
             } else if (select === 'tournament') {
                 countGroup.style.display = 'flex';
                 countLabel.innerText = '시간이 추가될 목표 턴 수 (예: 40)';
                 extraLabel.innerText = '목표 턴 통과 시 추가할 시간 (초)';
+                // 체스 대회 선택 시 일반적인 FIDE 클래식 시간으로 자동 세팅 (90분 / 30분 연장 / 40수)
+                if (lastRule !== 'tournament') {
+                    mainInput.value = 5400; extraInput.value = 1800; countInput.value = 40;
+                }
             } else if (select === 'fischer') {
                 countGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 추가 시간 (초)';
-            } else {
+                if (lastRule !== 'fischer') {
+                    mainInput.value = 300; extraInput.value = 10;
+                }
+            } else if (select === 'delay') {
                 countGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 유예 시간 (초)';
+                if (lastRule !== 'delay') {
+                    mainInput.value = 300; extraInput.value = 10;
+                }
             }
+            lastRule = select;
         }
 
         // 시간이 1시간 이상일 경우 HH:MM:SS, 아니면 MM:SS 로 표시
@@ -298,11 +327,25 @@
             return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
         }
 
+        // 게임 시작 시 규칙 텍스트 하단 고정 출력
         function applyAndStart() {
             rule = document.getElementById('ruleSelect').value;
             config.main = parseInt(document.getElementById('mainTime').value) || 0;
             config.extra = parseInt(document.getElementById('extraTime').value) || 0;
             config.count = parseInt(document.getElementById('byoyomiCount').value) || 1;
+
+            // 하단 안내 텍스트 설정
+            let ruleText = '';
+            if (rule === 'byoyomi') ruleText = `(초읽기 ${config.extra}초 ${config.count}회)`;
+            else if (rule === 'fischer') ruleText = `(턴당 ${config.extra}초 추가)`;
+            else if (rule === 'delay') ruleText = `(턴당 ${config.extra}초 유예)`;
+            else if (rule === 'tournament') {
+                let m = Math.floor(config.extra / 60);
+                ruleText = `(${config.count}턴 도달 시 ${m > 0 ? m+'분' : config.extra+'초'} 추가)`;
+            }
+
+            document.getElementById('p1-rule').innerText = ruleText;
+            document.getElementById('p2-rule').innerText = ruleText;
 
             resetPlayers();
 
@@ -337,49 +380,35 @@
         function tapArea(clickedPlayer) {
             if (isPaused) return;
 
-            // 1) 게임 시작 전 최초 터치
             if (activePlayer === 0) {
                 activePlayer = clickedPlayer === 1 ? 2 : 1;
                 let startP = activePlayer === 1 ? p1 : p2;
                 
-                // 버그 수정: 딜레이 방식 첫 턴 유예시간 부여
-                if (rule === 'delay') {
-                    startP.extra = config.extra;
-                }
-                if (rule === 'byoyomi' && startP.main === 0) {
-                    startP.extra = config.extra;
-                }
+                if (rule === 'delay') startP.extra = config.extra;
+                if (rule === 'byoyomi' && startP.main === 0) startP.extra = config.extra;
 
                 startTimer();
                 return;
             }
 
-            // 내 턴이 아니면 무시
             if (activePlayer !== clickedPlayer) return;
 
-            // 방금 턴을 마친 사람의 상태 업데이트
             let curr = activePlayer === 1 ? p1 : p2;
-            curr.turns++; // 마친 턴 수 증가
+            curr.turns++; 
 
             if (rule === 'fischer') {
                 curr.main += config.extra;
             } else if (rule === 'tournament') {
-                // 목표 턴 수에 도달하면 통째로 시간 추가
                 if (curr.turns === config.count) {
                     curr.main += config.extra;
                 }
             }
 
-            // 턴 넘기기
             activePlayer = activePlayer === 1 ? 2 : 1;
             let next = activePlayer === 1 ? p1 : p2;
 
-            if (rule === 'delay') {
-                next.extra = config.extra;
-            }
-            if (rule === 'byoyomi' && next.main === 0) {
-                next.extra = config.extra;
-            }
+            if (rule === 'delay') next.extra = config.extra;
+            if (rule === 'byoyomi' && next.main === 0) next.extra = config.extra;
 
             updateDisplay();
         }
@@ -413,7 +442,6 @@
                 else p.main--;
             } 
             else if (rule === 'fischer' || rule === 'tournament') {
-                // 피셔와 토너먼트는 평소에는 메인 시간만 깎임
                 p.main--;
             } 
             else if (rule === 'byoyomi') {
@@ -437,7 +465,7 @@
             if (p.main <= 0 && (rule !== 'byoyomi' || p.count <= 0)) {
                 clearInterval(timerInterval);
                 timerInterval = null;
-                activePlayer = -1; // 게임 종료 상태
+                activePlayer = -1; 
 
                 if (wakeLock !== null) {
                     wakeLock.release().then(() => { wakeLock = null; });
@@ -451,7 +479,6 @@
                 let timeEl = document.getElementById(`p${pNum}-time`);
                 let subEl = document.getElementById(`p${pNum}-sub`);
 
-                // UI 상태 및 텍스트 분기
                 if (activePlayer === -1) {
                     if (pState.main <= 0 && (rule !== 'byoyomi' || pState.count <= 0)) {
                         area.className = 'player-area loser';
@@ -470,7 +497,6 @@
                         area.className = 'player-area active';
                     }
 
-                    // 규칙별 진행 중 텍스트
                     if (rule === 'delay' && pState.extra > 0) {
                         subEl.innerText = `유예 시간: ${pState.extra}초`;
                     } else if (rule === 'byoyomi' && pState.main === 0) {
@@ -483,7 +509,6 @@
                     }
                 } else {
                     area.className = 'player-area';
-                    
                     if (rule === 'tournament') {
                         let targetText = pState.turns < pState.count ? ` / 목표: ${pState.count}` : '';
                         subEl.innerText = `대기 중 (완료 턴: ${pState.turns}${targetText})`;
@@ -492,7 +517,6 @@
                     }
                 }
 
-                // 타이머 렌더링
                 if (rule === 'byoyomi' && pState.main === 0) {
                     timeEl.innerText = pState.extra;
                 } else {
