@@ -3,16 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- 일부 모바일 브라우저의 강제 다크모드를 방지하기 위한 설정 -->
     <meta name="color-scheme" content="light dark">
     <title>모바일 보드게임 타이머</title>
 
-    <!-- 아이콘 설정 -->
     <link rel="icon" href="icon.ico" type="image/x-icon">
     <link rel="icon" href="icon.png" type="image/png">
     <link rel="apple-touch-icon" href="icon.png">
 
-    <!-- PWA 매니페스트 및 테마 색상 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e272e">
 
@@ -52,6 +49,8 @@
             width: 100%;
             max-width: 400px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         h2 { text-align: center; margin-bottom: 20px; }
@@ -74,7 +73,7 @@
         }
 
         .btn-start {
-            margin-top: 20px;
+            margin-top: 15px;
             padding: 15px;
             width: 100%;
             background-color: #0be881;
@@ -95,7 +94,6 @@
             width: 100%;
         }
 
-        /* --- 플레이어 영역 공통 및 대기(비활성) 상태 --- */
         .player-area {
             flex: 1;
             display: flex;
@@ -105,31 +103,22 @@
             font-size: 5em;
             font-weight: bold;
             transition: background 0.1s, color 0.1s;
-            /* 기본 대기 색상 (회색) */
             background: #7f8c8d;
             color: rgba(255,255,255,0.5);
         }
 
-        /* 1P 방향 뒤집기 */
-        #p1-area {
-            transform: rotate(180deg);
-        }
+        #p1-area { transform: rotate(180deg); }
 
-        /* --- 상태별 색상 덮어쓰기 (!important로 최우선 적용) --- */
-        
-        /* 활성 상태 (진행 중 또는 게임 시작 전) - 흰색 바탕, 검정 텍스트 */
         .player-area.active {
             background: #ffffff !important;
             color: #000000 !important;
         }
 
-        /* 시간 임박 / 초읽기 상태 (빨간색) */
         .player-area.danger {
             background: #ff3f34 !important;
             color: #ffffff !important;
         }
 
-        /* 패배 상태 */
         .player-area.loser {
             background: #1e272e !important;
             color: #ff3f34 !important;
@@ -181,9 +170,9 @@
             padding: 15px 40px;
             margin: 10px;
             border-radius: 8px;
-            font-size: 1.5em;
+            font-size: 1.2em;
             font-weight: bold;
-            width: 250px;
+            width: 280px;
         }
         .btn-settings { background-color: #ff3f34; color: white; }
     </style>
@@ -197,9 +186,10 @@
             <div class="form-group">
                 <label>시간 규칙</label>
                 <select id="ruleSelect" onchange="toggleByoyomiCount()">
-                    <option value="byoyomi">초읽기 (Byo-yomi)</option>
-                    <option value="fischer">피셔 (Increment)</option>
-                    <option value="delay">딜레이 (Delay)</option>
+                    <option value="byoyomi">초읽기 (기본시간 먼저 소모)</option>
+                    <option value="fischer">피셔 (턴당 시간 추가)</option>
+                    <option value="delay">딜레이 (유예시간 동안 소모 없음)</option>
+                    <option value="tournament">오프라인 체스 대회 (지정 턴 도달 시 시간 추가)</option>
                 </select>
             </div>
 
@@ -214,7 +204,7 @@
             </div>
 
             <div class="form-group" id="byoyomiCountGroup">
-                <label>초읽기 횟수</label>
+                <label id="countLabel">초읽기 횟수</label>
                 <input type="number" id="byoyomiCount" value="3" inputmode="numeric">
             </div>
 
@@ -258,9 +248,7 @@
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
                 }
-            } catch (err) {
-                console.log(`Wake Lock Error: ${err.name}, ${err.message}`);
-            }
+            } catch (err) {}
         }
 
         document.addEventListener('visibilitychange', async () => {
@@ -271,21 +259,28 @@
 
         let rule = 'byoyomi';
         let config = { main: 0, extra: 0, count: 0 };
-        let p1 = { main: 0, extra: 0, count: 0 };
-        let p2 = { main: 0, extra: 0, count: 0 };
+        let p1 = { main: 0, extra: 0, count: 0, turns: 0 };
+        let p2 = { main: 0, extra: 0, count: 0, turns: 0 };
         
         let activePlayer = 0; 
         let timerInterval = null;
         let isPaused = false;
 
+        // 규칙 변경 시 텍스트 및 입력창 상태 전환
         function toggleByoyomiCount() {
             const select = document.getElementById('ruleSelect').value;
             const countGroup = document.getElementById('byoyomiCountGroup');
+            const countLabel = document.getElementById('countLabel');
             const extraLabel = document.getElementById('extraTimeLabel');
 
             if (select === 'byoyomi') {
                 countGroup.style.display = 'flex';
+                countLabel.innerText = '초읽기 횟수';
                 extraLabel.innerText = '초읽기 시간 (초)';
+            } else if (select === 'tournament') {
+                countGroup.style.display = 'flex';
+                countLabel.innerText = '시간이 추가될 목표 턴 수 (예: 40)';
+                extraLabel.innerText = '목표 턴 통과 시 추가할 시간 (초)';
             } else if (select === 'fischer') {
                 countGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 추가 시간 (초)';
@@ -295,10 +290,12 @@
             }
         }
 
+        // 시간이 1시간 이상일 경우 HH:MM:SS, 아니면 MM:SS 로 표시
         function formatTime(seconds) {
-            let m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            let h = Math.floor(seconds / 3600);
+            let m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
             let s = (seconds % 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
+            return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
         }
 
         function applyAndStart() {
@@ -312,7 +309,7 @@
             document.getElementById('settings-screen').style.display = 'none';
             document.getElementById('timer-screen').style.display = 'flex';
             
-            updateDisplay(); // 화면 업데이트 즉시 실행
+            updateDisplay();
             requestWakeLock();
         }
 
@@ -322,9 +319,8 @@
             clearInterval(timerInterval);
             timerInterval = null;
 
-            p1 = { main: config.main, extra: rule === 'byoyomi' ? config.extra : 0, count: config.count };
-            p2 = { main: config.main, extra: rule === 'byoyomi' ? config.extra : 0, count: config.count };
-            // 클래스 할당은 updateDisplay() 함수에서 전담하도록 수정
+            p1 = { main: config.main, extra: rule === 'byoyomi' ? config.extra : 0, count: config.count, turns: 0 };
+            p2 = { main: config.main, extra: rule === 'byoyomi' ? config.extra : 0, count: config.count, turns: 0 };
         }
 
         function goToSettings() {
@@ -341,22 +337,40 @@
         function tapArea(clickedPlayer) {
             if (isPaused) return;
 
-            // 시작 전 양쪽 모두 흰색일 때 누군가 터치한 경우
+            // 1) 게임 시작 전 최초 터치
             if (activePlayer === 0) {
                 activePlayer = clickedPlayer === 1 ? 2 : 1;
+                let startP = activePlayer === 1 ? p1 : p2;
+                
+                // 버그 수정: 딜레이 방식 첫 턴 유예시간 부여
+                if (rule === 'delay') {
+                    startP.extra = config.extra;
+                }
+                if (rule === 'byoyomi' && startP.main === 0) {
+                    startP.extra = config.extra;
+                }
+
                 startTimer();
                 return;
             }
 
-            // 내 턴일 때 터치해서 넘기기
+            // 내 턴이 아니면 무시
             if (activePlayer !== clickedPlayer) return;
 
+            // 방금 턴을 마친 사람의 상태 업데이트
             let curr = activePlayer === 1 ? p1 : p2;
+            curr.turns++; // 마친 턴 수 증가
 
             if (rule === 'fischer') {
                 curr.main += config.extra;
+            } else if (rule === 'tournament') {
+                // 목표 턴 수에 도달하면 통째로 시간 추가
+                if (curr.turns === config.count) {
+                    curr.main += config.extra;
+                }
             }
 
+            // 턴 넘기기
             activePlayer = activePlayer === 1 ? 2 : 1;
             let next = activePlayer === 1 ? p1 : p2;
 
@@ -398,22 +412,19 @@
                 if (p.extra > 0) p.extra--;
                 else p.main--;
             } 
-            else if (rule === 'fischer') {
+            else if (rule === 'fischer' || rule === 'tournament') {
+                // 피셔와 토너먼트는 평소에는 메인 시간만 깎임
                 p.main--;
             } 
             else if (rule === 'byoyomi') {
                 if (p.main > 0) {
                     p.main--;
-                    if (p.main === 0) {
-                        p.extra = config.extra;
-                    }
+                    if (p.main === 0) p.extra = config.extra;
                 } else {
                     p.extra--;
                     if (p.extra < 0) {
                         p.count--;
-                        if (p.count > 0) {
-                            p.extra = config.extra;
-                        }
+                        if (p.count > 0) p.extra = config.extra;
                     }
                 }
             }
@@ -426,7 +437,7 @@
             if (p.main <= 0 && (rule !== 'byoyomi' || p.count <= 0)) {
                 clearInterval(timerInterval);
                 timerInterval = null;
-                activePlayer = -1; // 패배 상태로 변경
+                activePlayer = -1; // 게임 종료 상태
 
                 if (wakeLock !== null) {
                     wakeLock.release().then(() => { wakeLock = null; });
@@ -434,52 +445,56 @@
             }
         }
 
-        // 전체 화면 UI를 상태에 맞춰 동기화하는 함수
         function updateDisplay() {
             const updatePlayerUI = (pNum, pState) => {
                 let area = document.getElementById(`p${pNum}-area`);
                 let timeEl = document.getElementById(`p${pNum}-time`);
                 let subEl = document.getElementById(`p${pNum}-sub`);
 
-                // 1. 상태에 따른 클래스(색상) 및 서브 텍스트 분기 처리
+                // UI 상태 및 텍스트 분기
                 if (activePlayer === -1) {
-                    // 게임 종료
                     if (pState.main <= 0 && (rule !== 'byoyomi' || pState.count <= 0)) {
                         area.className = 'player-area loser';
                         subEl.innerText = '시간 초과로 패배';
                     } else {
-                        area.className = 'player-area'; // 승자는 회색 대기 처리
+                        area.className = 'player-area';
                         subEl.innerText = '승리!';
                     }
                 } else if (activePlayer === 0) {
-                    // ★ 시작 전 대기 화면 (둘 다 흰색 활성화)
                     area.className = 'player-area active';
                     subEl.innerText = '터치하여 상대 턴 시작';
                 } else if (activePlayer === pNum) {
-                    // ★ 현재 진행 중인 턴 (흰색 활성화)
                     if (rule === 'byoyomi' && pState.main === 0) {
-                        area.className = 'player-area danger'; // 초읽기 진입 시 빨간색
+                        area.className = 'player-area danger';
                     } else {
                         area.className = 'player-area active';
                     }
 
-                    // 텍스트 업데이트
+                    // 규칙별 진행 중 텍스트
                     if (rule === 'delay' && pState.extra > 0) {
                         subEl.innerText = `유예 시간: ${pState.extra}초`;
                     } else if (rule === 'byoyomi' && pState.main === 0) {
                         subEl.innerText = `초읽기 남은 횟수: ${pState.count}회`;
+                    } else if (rule === 'tournament') {
+                        let targetText = pState.turns < pState.count ? ` / 목표: ${pState.count}` : '';
+                        subEl.innerText = `완료 턴: ${pState.turns}${targetText}`;
                     } else {
                         subEl.innerText = '내 턴 진행 중';
                     }
                 } else {
-                    // 상대 턴 (회색 비활성화)
                     area.className = 'player-area';
-                    subEl.innerText = '대기 중';
+                    
+                    if (rule === 'tournament') {
+                        let targetText = pState.turns < pState.count ? ` / 목표: ${pState.count}` : '';
+                        subEl.innerText = `대기 중 (완료 턴: ${pState.turns}${targetText})`;
+                    } else {
+                        subEl.innerText = '대기 중';
+                    }
                 }
 
-                // 2. 시간 표시 업데이트
+                // 타이머 렌더링
                 if (rule === 'byoyomi' && pState.main === 0) {
-                    timeEl.innerText = pState.extra; // 초읽기는 초만 표시
+                    timeEl.innerText = pState.extra;
                 } else {
                     timeEl.innerText = formatTime(Math.max(0, pState.main));
                 }
