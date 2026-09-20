@@ -94,6 +94,7 @@
             width: 100%;
         }
 
+        /* 기본 대기 상태 (회색) */
         .player-area {
             flex: 1;
             display: flex;
@@ -102,28 +103,30 @@
             align-items: center;
             font-size: 5em;
             font-weight: bold;
-            transition: background 0.1s, color 0.1s;
-            background: #7f8c8d;
+            /* 부드러운 색상 전환을 위해 transition 유지 */
+            transition: background 0.1s, color 0.1s; 
+            background-color: #7f8c8d;
             color: rgba(255,255,255,0.5);
             position: relative;
         }
 
         #p1-area { transform: rotate(180deg); }
 
+        /* 활성 상태 (진행 중 - 기본 흰색) !important 제거 */
         .player-area.active {
-            background: #ffffff !important;
-            color: #000000 !important;
+            background-color: #ffffff;
+            color: #000000;
         }
 
-        /* 승리, 패배 화면 강제 색상 지정 */
+        /* 승리, 패배 상태 (JS 인라인 스타일보다 낮지만 클래스로 적용) !important 제거 */
         .player-area.winner {
-            background: #2980b9 !important; /* 승리 - 밝은 파랑 */
-            color: #ffffff !important;
+            background-color: #2980b9; 
+            color: #ffffff;
         }
 
         .player-area.loser {
-            background: #c0392b !important; /* 패배 - 어두운 빨강 */
-            color: #ffffff !important;
+            background-color: #c0392b; 
+            color: #ffffff;
         }
 
         .timer-content {
@@ -136,7 +139,7 @@
 
         .time-display { 
             font-variant-numeric: tabular-nums; 
-            transition: font-size 0.2s; /* 크기 변환 애니메이션 */
+            transition: font-size 0.1s; 
         }
         
         .sub-info {
@@ -155,7 +158,7 @@
 
         .result-display {
             display: none;
-            font-size: 1.5em; /* 부모 5em 기준 7.5em로 초거대 출력 */
+            font-size: 1.5em; 
             font-weight: 900;
             text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
         }
@@ -296,7 +299,6 @@
         });
 
         let rule = 'byoyomi';
-        // 시간 단위를 밀리초(ms) 단위로 완벽하게 쪼갭니다.
         let config = { mainMs: 0, extraMs: 0, count: 0, incrementMs: 0 };
         let p1 = { mainMs: 0, extraMs: 0, count: 0, turns: 0 };
         let p2 = { mainMs: 0, extraMs: 0, count: 0, turns: 0 };
@@ -339,7 +341,6 @@
             lastRule = select;
         }
 
-        // 일반 시간 포맷 (올림 처리하여 29.1초 남았을 때도 30초로 렌더링되게 함)
         function formatNormalTime(ms) {
             let totalSeconds = Math.ceil(ms / 1000);
             let h = Math.floor(totalSeconds / 3600);
@@ -348,14 +349,12 @@
             return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
         }
 
-        // 5초 미만 소숫점 1자리 포맷
         function formatDecimalTime(ms) {
             return (ms / 1000).toFixed(1);
         }
 
         function applyAndStart() {
             rule = document.getElementById('ruleSelect').value;
-            // 입력받은 초 단위를 모두 밀리초(ms)로 변환
             config.mainMs = (parseInt(document.getElementById('mainTime').value) || 0) * 1000;
             config.extraMs = (parseInt(document.getElementById('extraTime').value) || 0) * 1000;
             config.count = parseInt(document.getElementById('byoyomiCount').value) || 1;
@@ -439,7 +438,6 @@
         function startTimer() {
             lastTickTime = Date.now();
             if (!timerInterval) {
-                // 부드러운 소숫점 카운트다운을 위해 50ms마다 렌더링
                 timerInterval = setInterval(tick, 50); 
             }
             updateDisplay();
@@ -459,7 +457,6 @@
             startTimer();
         }
 
-        // 정밀한 델타 타임 계산
         function tick() {
             if (activePlayer === 0 || activePlayer === -1 || isPaused) return;
 
@@ -473,7 +470,7 @@
                 if (p.extraMs > 0) {
                     p.extraMs -= delta;
                     if (p.extraMs < 0) {
-                        p.mainMs += p.extraMs; // 유예시간 넘친 만큼 본시간 차감
+                        p.mainMs += p.extraMs; 
                         p.extraMs = 0;
                     }
                 } else {
@@ -489,14 +486,14 @@
                     if (p.mainMs <= 0) {
                         let overflow = p.mainMs;
                         p.mainMs = 0;
-                        p.extraMs = config.extraMs + overflow; // 본시간 넘친 만큼 초읽기 차감
+                        p.extraMs = config.extraMs + overflow; 
                     }
                 } else {
                     p.extraMs -= delta;
                     while (p.extraMs <= 0 && p.count > 0) {
                         p.count--;
                         if (p.count > 0) p.extraMs += config.extraMs;
-                        else p.extraMs = 0; // 게임 오버
+                        else p.extraMs = 0; 
                     }
                 }
             }
@@ -509,7 +506,7 @@
             if (p.mainMs <= 0 && (rule !== 'byoyomi' || p.count <= 0)) {
                 clearInterval(timerInterval);
                 timerInterval = null;
-                activePlayer = -1; // -1: 게임 종료 상태 플래그
+                activePlayer = -1; 
 
                 if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
             }
@@ -523,41 +520,39 @@
                 let timeEl = document.getElementById(`p${pNum}-time`);
                 let subEl = document.getElementById(`p${pNum}-sub`);
 
-                // --- 1. 시간 패배 (게임 종료 화면) 처리 ---
+                // 매번 인라인 스타일을 깔끔하게 초기화합니다.
+                area.style.backgroundColor = '';
+                area.style.color = '';
+                timeEl.style.fontSize = ''; 
+
                 if (activePlayer === -1) {
-                    content.style.display = 'none'; // 기존 시계, 글귀 전부 숨김
-                    result.style.display = 'block'; // 결과 글씨만 크게 띄움
-                    area.style.background = '';
-                    area.style.color = '';
+                    content.style.display = 'none'; 
+                    result.style.display = 'block'; 
 
                     let isLoser = (pState.mainMs <= 0 && (rule !== 'byoyomi' || pState.count <= 0));
                     if (isLoser) {
-                        area.className = 'player-area loser';
+                        area.className = 'player-area loser'; // CSS의 .loser 배경색이 적용됨
                         result.innerText = '시간 패';
                     } else {
-                        area.className = 'player-area winner';
+                        area.className = 'player-area winner'; // CSS의 .winner 배경색이 적용됨
                         result.innerText = '시간 승';
                     }
                     return;
                 }
 
-                // 게임이 끝나지 않은 경우
                 content.style.display = 'flex';
                 result.style.display = 'none';
 
-                // --- 2. 5초 임박 (Warning) 판단 ---
                 let isWarning = false;
                 let warningTimeMs = 0;
 
                 if (activePlayer === pNum) {
                     if (rule === 'byoyomi') {
-                        // 매 초읽기 횟수마다 5초 이하로 떨어지면 텐션 작동
                         if (pState.mainMs === 0 && pState.extraMs <= 5000 && pState.extraMs > 0) {
                             isWarning = true;
                             warningTimeMs = pState.extraMs;
                         }
                     } else if (rule === 'delay') {
-                        // 유예시간이 끝났고 본시간이 5초 이내일 때만 패배 임박 작동
                         if (pState.extraMs <= 0 && pState.mainMs <= 5000 && pState.mainMs > 0) {
                             isWarning = true;
                             warningTimeMs = pState.mainMs;
@@ -570,27 +565,24 @@
                     }
                 }
 
-                // 이전 인라인 스타일 초기화
-                area.style.background = '';
-                area.style.color = '';
-                timeEl.style.fontSize = ''; // CSS 기본값 유지
-
-                // --- 3. UI 및 백그라운드 색상 업데이트 ---
+                // JS 인라인 스타일 부여 (CSS 클래스보다 우선순위 높음)
                 if (activePlayer === 0) {
                     area.className = 'player-area active';
                     subEl.innerText = '터치하여 상대 턴 시작';
                 } else if (activePlayer === pNum) {
-                    area.className = 'player-area active';
+                    area.className = 'player-area active'; // 기본은 활성 클래스
 
                     if (isWarning) {
-                        // 5초(5000ms)부터 0초까지 수학적 공식에 따라 (255, 255, 0) -> (255, 0, 0) 노란색~빨간색 그라데이션
+                        // 5초 미만: 노란색(255, 255, 0) -> 빨간색(255, 0, 0)
                         let g = Math.floor((warningTimeMs / 5000) * 255);
-                        area.style.background = `rgb(255, ${g}, 0)`;
-                        area.style.color = '#000000'; // 노란/빨간 배경 위 가독성을 위한 검정 텍스트
+                        area.style.backgroundColor = `rgb(255, ${g}, 0)`;
+                        area.style.color = '#000000';
                     } else if (rule === 'byoyomi' && pState.mainMs === 0) {
-                        // 초읽기 도입 시 초록색 화면
-                        area.style.background = '#2ecc71';
+                        // 5초 초과 남은 초읽기 상태: 초록색
+                        area.style.backgroundColor = '#2ecc71';
                         area.style.color = '#ffffff';
+                    } else {
+                        // 활성화 턴 진행 중 (CSS .active의 흰색 유지)
                     }
 
                     if (rule === 'delay' && pState.extraMs > 0) {
@@ -604,7 +596,7 @@
                         subEl.innerText = '내 턴 진행 중';
                     }
                 } else {
-                    area.className = 'player-area'; // 대기 중 (회색)
+                    area.className = 'player-area'; // 대기 중 (CSS의 회색 적용)
                     if (rule === 'tournament') {
                         let targetText = pState.turns < pState.count ? ` / 목표: ${pState.count}` : '';
                         subEl.innerText = `대기 중 (완료 턴: ${pState.turns}${targetText})`;
@@ -613,12 +605,10 @@
                     }
                 }
 
-                // --- 4. 타이머 텍스트 업데이트 (소숫점 vs 정수) ---
                 if (isWarning) {
-                    // 5초 미만 진입 시 숫자 크기를 키우고 0.1초 단위 표시
                     let displayMs = Math.max(0, warningTimeMs);
                     timeEl.innerText = formatDecimalTime(displayMs);
-                    timeEl.style.fontSize = '1.3em'; // 부모 영역 대비 1.3배 확대
+                    timeEl.style.fontSize = '1.3em'; // 확대
                 } else {
                     if (rule === 'byoyomi' && pState.mainMs === 0) {
                         timeEl.innerText = Math.ceil(pState.extraMs / 1000);
