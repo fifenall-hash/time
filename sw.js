@@ -1,4 +1,4 @@
-const CACHE_NAME = 'boardgame-timer-v5'; // v5로 버전 업
+const CACHE_NAME = 'boardgame-timer-v6';
 const urlsToCache = [
   './',
   './index.html',
