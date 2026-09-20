@@ -93,6 +93,7 @@
             width: 100%;
         }
 
+        /* --- 플레이어 영역 공통 및 대기(비활성) 상태 --- */
         .player-area {
             flex: 1;
             display: flex;
@@ -102,20 +103,17 @@
             font-size: 5em;
             font-weight: bold;
             transition: background-color 0.1s, color 0.1s;
+            /* 기본 대기 색상 */
+            background-color: #7f8c8d;
+            color: rgba(255,255,255,0.5);
         }
 
-        /* 비활성 상태 (대기 중) */
+        /* 1P 방향 뒤집기 */
         #p1-area {
             transform: rotate(180deg);
-            background-color: #7f8c8d;
-            color: rgba(255,255,255,0.5);
         }
 
-        #p2-area {
-            background-color: #7f8c8d;
-            color: rgba(255,255,255,0.5);
-        }
-
+        /* --- 상태별 색상 덮어쓰기 --- */
         /* 활성 상태 (진행 중) - 흰색 바탕, 검정 텍스트 */
         .player-area.active {
             background-color: #ffffff;
@@ -125,7 +123,7 @@
         /* 시간 임박 / 초읽기 상태 (빨간색) */
         .player-area.danger {
             background-color: #ff3f34;
-            color: white;
+            color: #ffffff;
         }
 
         /* 패배 상태 */
