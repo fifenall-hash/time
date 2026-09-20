@@ -49,22 +49,22 @@
             width: 100%;
             max-width: 400px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-            max-height: 90vh;
+            max-height: 95vh;
             overflow-y: auto;
         }
 
         h2 { text-align: center; margin-bottom: 20px; }
 
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             display: flex;
             flex-direction: column;
         }
 
-        label { margin-bottom: 5px; font-weight: bold; }
+        label { margin-bottom: 5px; font-weight: bold; font-size: 0.95em; }
 
         select, input {
-            padding: 12px;
+            padding: 10px;
             border-radius: 8px;
             border: none;
             font-size: 1.1em;
@@ -134,12 +134,11 @@
             height: 30px;
         }
 
-        /* 하단 고정 규칙 표시 텍스트 */
         .rule-info {
-            font-size: 0.2em;
+            font-size: 0.18em;
             margin-top: 5px;
-            opacity: 0.6;
-            font-weight: 500;
+            opacity: 0.7;
+            font-weight: 600;
         }
 
         .center-bar {
@@ -206,6 +205,12 @@
                 <label>기본 시간 (초)</label>
                 <input type="number" id="mainTime" value="300" inputmode="numeric">
             </div>
+            
+            <!-- 체스 대회용 매 턴 추가 시간(피셔) 입력창 -->
+            <div class="form-group" id="incrementTimeGroup" style="display: none;">
+                <label>턴당 추가 시간 (초)</label>
+                <input type="number" id="incrementTime" value="30" inputmode="numeric">
+            </div>
 
             <div class="form-group">
                 <label id="extraTimeLabel">초읽기 시간 (초)</label>
@@ -269,27 +274,30 @@
         });
 
         let rule = 'byoyomi';
-        let config = { main: 0, extra: 0, count: 0 };
+        let config = { main: 0, extra: 0, count: 0, increment: 0 };
         let p1 = { main: 0, extra: 0, count: 0, turns: 0 };
         let p2 = { main: 0, extra: 0, count: 0, turns: 0 };
         
         let activePlayer = 0; 
         let timerInterval = null;
         let isPaused = false;
-        let lastRule = 'byoyomi'; // 폼 기본값 변경 감지용
+        let lastRule = 'byoyomi';
 
-        // 규칙 변경 시 텍스트 및 입력창 기본값(대회 규정) 동적 전환
         function toggleByoyomiCount() {
             const select = document.getElementById('ruleSelect').value;
             const countGroup = document.getElementById('byoyomiCountGroup');
+            const incGroup = document.getElementById('incrementTimeGroup');
             const countLabel = document.getElementById('countLabel');
             const extraLabel = document.getElementById('extraTimeLabel');
+            
             const mainInput = document.getElementById('mainTime');
             const extraInput = document.getElementById('extraTime');
             const countInput = document.getElementById('byoyomiCount');
+            const incInput = document.getElementById('incrementTime');
 
             if (select === 'byoyomi') {
                 countGroup.style.display = 'flex';
+                incGroup.style.display = 'none';
                 countLabel.innerText = '초읽기 횟수';
                 extraLabel.innerText = '초읽기 시간 (초)';
                 if (lastRule !== 'byoyomi') {
@@ -297,20 +305,23 @@
                 }
             } else if (select === 'tournament') {
                 countGroup.style.display = 'flex';
+                incGroup.style.display = 'flex'; // 피셔(턴당 추가) 시간 입력 활성화
                 countLabel.innerText = '시간이 추가될 목표 턴 수 (예: 40)';
-                extraLabel.innerText = '목표 턴 통과 시 추가할 시간 (초)';
-                // 체스 대회 선택 시 일반적인 FIDE 클래식 시간으로 자동 세팅 (90분 / 30분 연장 / 40수)
+                extraLabel.innerText = '목표 턴 통과 시 통째로 추가할 시간 (초)';
                 if (lastRule !== 'tournament') {
-                    mainInput.value = 5400; extraInput.value = 1800; countInput.value = 40;
+                    // 체스 FIDE 스탠다드 룰 기본값 세팅
+                    mainInput.value = 5400; extraInput.value = 1800; countInput.value = 40; incInput.value = 30;
                 }
             } else if (select === 'fischer') {
                 countGroup.style.display = 'none';
+                incGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 추가 시간 (초)';
                 if (lastRule !== 'fischer') {
                     mainInput.value = 300; extraInput.value = 10;
                 }
             } else if (select === 'delay') {
                 countGroup.style.display = 'none';
+                incGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 유예 시간 (초)';
                 if (lastRule !== 'delay') {
                     mainInput.value = 300; extraInput.value = 10;
@@ -319,7 +330,6 @@
             lastRule = select;
         }
 
-        // 시간이 1시간 이상일 경우 HH:MM:SS, 아니면 MM:SS 로 표시
         function formatTime(seconds) {
             let h = Math.floor(seconds / 3600);
             let m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
@@ -327,21 +337,20 @@
             return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
         }
 
-        // 게임 시작 시 규칙 텍스트 하단 고정 출력
         function applyAndStart() {
             rule = document.getElementById('ruleSelect').value;
             config.main = parseInt(document.getElementById('mainTime').value) || 0;
             config.extra = parseInt(document.getElementById('extraTime').value) || 0;
             config.count = parseInt(document.getElementById('byoyomiCount').value) || 1;
+            config.increment = parseInt(document.getElementById('incrementTime').value) || 0;
 
-            // 하단 안내 텍스트 설정
             let ruleText = '';
             if (rule === 'byoyomi') ruleText = `(초읽기 ${config.extra}초 ${config.count}회)`;
             else if (rule === 'fischer') ruleText = `(턴당 ${config.extra}초 추가)`;
             else if (rule === 'delay') ruleText = `(턴당 ${config.extra}초 유예)`;
             else if (rule === 'tournament') {
                 let m = Math.floor(config.extra / 60);
-                ruleText = `(${config.count}턴 도달 시 ${m > 0 ? m+'분' : config.extra+'초'} 추가)`;
+                ruleText = `(턴당 ${config.increment}초 추가, ${config.count}턴 도달 시 ${m > 0 ? m+'분' : config.extra+'초'} 추가)`;
             }
 
             document.getElementById('p1-rule').innerText = ruleText;
@@ -399,6 +408,9 @@
             if (rule === 'fischer') {
                 curr.main += config.extra;
             } else if (rule === 'tournament') {
+                // 체스 대회 룰: 매 턴마다 기본 인크리먼트(피셔) 추가
+                curr.main += config.increment; 
+                // 목표 턴수 도달 시 보너스 시간 추가
                 if (curr.turns === config.count) {
                     curr.main += config.extra;
                 }
@@ -503,7 +515,7 @@
                         subEl.innerText = `초읽기 남은 횟수: ${pState.count}회`;
                     } else if (rule === 'tournament') {
                         let targetText = pState.turns < pState.count ? ` / 목표: ${pState.count}` : '';
-                        subEl.innerText = `완료 턴: ${pState.turns}${targetText}`;
+                        subEl.innerText = `내 턴 진행 중 (완료 턴: ${pState.turns}${targetText})`;
                     } else {
                         subEl.innerText = '내 턴 진행 중';
                     }
