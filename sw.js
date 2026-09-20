@@ -1,4 +1,4 @@
-const CACHE_NAME = 'boardgame-timer-v6';
+const CACHE_NAME = 'boardgame-timer-v7';
 const urlsToCache = [
   './',
   './index.html',
