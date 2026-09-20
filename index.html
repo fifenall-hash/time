@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 일부 모바일 브라우저의 강제 다크모드를 방지하기 위한 설정 -->
+    <meta name="color-scheme" content="light dark">
     <title>모바일 보드게임 타이머</title>
 
     <!-- 아이콘 설정 -->
@@ -102,9 +104,9 @@
             align-items: center;
             font-size: 5em;
             font-weight: bold;
-            transition: background-color 0.1s, color 0.1s;
-            /* 기본 대기 색상 */
-            background-color: #7f8c8d;
+            transition: background 0.1s, color 0.1s;
+            /* 기본 대기 색상 (회색) */
+            background: #7f8c8d;
             color: rgba(255,255,255,0.5);
         }
 
@@ -113,23 +115,24 @@
             transform: rotate(180deg);
         }
 
-        /* --- 상태별 색상 덮어쓰기 --- */
-        /* 활성 상태 (진행 중) - 흰색 바탕, 검정 텍스트 */
+        /* --- 상태별 색상 덮어쓰기 (!important로 최우선 적용) --- */
+        
+        /* 활성 상태 (진행 중 또는 게임 시작 전) - 흰색 바탕, 검정 텍스트 */
         .player-area.active {
-            background-color: #ffffff;
-            color: #000000;
+            background: #ffffff !important;
+            color: #000000 !important;
         }
 
         /* 시간 임박 / 초읽기 상태 (빨간색) */
         .player-area.danger {
-            background-color: #ff3f34;
-            color: #ffffff;
+            background: #ff3f34 !important;
+            color: #ffffff !important;
         }
 
         /* 패배 상태 */
         .player-area.loser {
-            background-color: #1e272e;
-            color: #ff3f34;
+            background: #1e272e !important;
+            color: #ff3f34 !important;
         }
 
         .time-display { font-variant-numeric: tabular-nums; }
@@ -194,9 +197,9 @@
             <div class="form-group">
                 <label>시간 규칙</label>
                 <select id="ruleSelect" onchange="toggleByoyomiCount()">
-                    <option value="byoyomi">초읽기</option>
-                    <option value="fischer">피셔</option>
-                    <option value="delay">딜레이</option>
+                    <option value="byoyomi">초읽기 (Byo-yomi)</option>
+                    <option value="fischer">피셔 (Increment)</option>
+                    <option value="delay">딜레이 (Delay)</option>
                 </select>
             </div>
 
@@ -254,11 +257,6 @@
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('화면 꺼짐 방지가 활성화되었습니다.');
-                    
-                    wakeLock.addEventListener('release', () => {
-                        console.log('화면 꺼짐 방지가 해제되었습니다.');
-                    });
                 }
             } catch (err) {
                 console.log(`Wake Lock Error: ${err.name}, ${err.message}`);
@@ -314,7 +312,7 @@
             document.getElementById('settings-screen').style.display = 'none';
             document.getElementById('timer-screen').style.display = 'flex';
             
-            updateDisplay();
+            updateDisplay(); // 화면 업데이트 즉시 실행
             requestWakeLock();
         }
 
@@ -326,11 +324,7 @@
 
             p1 = { main: config.main, extra: rule === 'byoyomi' ? config.extra : 0, count: config.count };
             p2 = { main: config.main, extra: rule === 'byoyomi' ? config.extra : 0, count: config.count };
-
-            document.getElementById('p1-area').className = 'player-area';
-            document.getElementById('p2-area').className = 'player-area';
-            document.getElementById('p1-sub').innerText = '터치하여 상대 턴 시작';
-            document.getElementById('p2-sub').innerText = '터치하여 상대 턴 시작';
+            // 클래스 할당은 updateDisplay() 함수에서 전담하도록 수정
         }
 
         function goToSettings() {
@@ -340,20 +334,21 @@
             document.getElementById('settings-screen').style.display = 'flex';
 
             if (wakeLock !== null) {
-                wakeLock.release()
-                    .then(() => { wakeLock = null; });
+                wakeLock.release().then(() => { wakeLock = null; });
             }
         }
 
         function tapArea(clickedPlayer) {
             if (isPaused) return;
 
+            // 시작 전 양쪽 모두 흰색일 때 누군가 터치한 경우
             if (activePlayer === 0) {
                 activePlayer = clickedPlayer === 1 ? 2 : 1;
                 startTimer();
                 return;
             }
 
+            // 내 턴일 때 터치해서 넘기기
             if (activePlayer !== clickedPlayer) return;
 
             let curr = activePlayer === 1 ? p1 : p2;
@@ -431,47 +426,62 @@
             if (p.main <= 0 && (rule !== 'byoyomi' || p.count <= 0)) {
                 clearInterval(timerInterval);
                 timerInterval = null;
-                
-                let area = document.getElementById(`p${activePlayer}-area`);
-                area.className = 'player-area loser';
-                document.getElementById(`p${activePlayer}-sub`).innerText = '시간 초과로 패배';
-                activePlayer = -1;
+                activePlayer = -1; // 패배 상태로 변경
 
                 if (wakeLock !== null) {
-                    wakeLock.release()
-                        .then(() => { wakeLock = null; });
+                    wakeLock.release().then(() => { wakeLock = null; });
                 }
             }
         }
 
+        // 전체 화면 UI를 상태에 맞춰 동기화하는 함수
         function updateDisplay() {
             const updatePlayerUI = (pNum, pState) => {
                 let area = document.getElementById(`p${pNum}-area`);
                 let timeEl = document.getElementById(`p${pNum}-time`);
                 let subEl = document.getElementById(`p${pNum}-sub`);
 
-                if (activePlayer !== -1) {
-                    if (activePlayer === pNum) {
-                        if (rule === 'byoyomi' && pState.main === 0) {
-                            area.className = 'player-area danger';
-                        } else {
-                            area.className = 'player-area active';
-                        }
+                // 1. 상태에 따른 클래스(색상) 및 서브 텍스트 분기 처리
+                if (activePlayer === -1) {
+                    // 게임 종료
+                    if (pState.main <= 0 && (rule !== 'byoyomi' || pState.count <= 0)) {
+                        area.className = 'player-area loser';
+                        subEl.innerText = '시간 초과로 패배';
                     } else {
-                        area.className = 'player-area';
+                        area.className = 'player-area'; // 승자는 회색 대기 처리
+                        subEl.innerText = '승리!';
                     }
+                } else if (activePlayer === 0) {
+                    // ★ 시작 전 대기 화면 (둘 다 흰색 활성화)
+                    area.className = 'player-area active';
+                    subEl.innerText = '터치하여 상대 턴 시작';
+                } else if (activePlayer === pNum) {
+                    // ★ 현재 진행 중인 턴 (흰색 활성화)
+                    if (rule === 'byoyomi' && pState.main === 0) {
+                        area.className = 'player-area danger'; // 초읽기 진입 시 빨간색
+                    } else {
+                        area.className = 'player-area active';
+                    }
+
+                    // 텍스트 업데이트
+                    if (rule === 'delay' && pState.extra > 0) {
+                        subEl.innerText = `유예 시간: ${pState.extra}초`;
+                    } else if (rule === 'byoyomi' && pState.main === 0) {
+                        subEl.innerText = `초읽기 남은 횟수: ${pState.count}회`;
+                    } else {
+                        subEl.innerText = '내 턴 진행 중';
+                    }
+                } else {
+                    // 상대 턴 (회색 비활성화)
+                    area.className = 'player-area';
+                    subEl.innerText = '대기 중';
                 }
 
+                // 2. 시간 표시 업데이트
                 if (rule === 'byoyomi' && pState.main === 0) {
-                    timeEl.innerText = pState.extra;
-                    subEl.innerText = `초읽기 남은 횟수: ${pState.count}회`;
+                    timeEl.innerText = pState.extra; // 초읽기는 초만 표시
                 } else {
                     timeEl.innerText = formatTime(Math.max(0, pState.main));
-                    if (rule === 'delay' && pState.extra > 0 && activePlayer === pNum) {
-                        subEl.innerText = `유예 시간: ${pState.extra}초`;
-                    } else if (activePlayer !== 0 && activePlayer !== -1) {
-                        subEl.innerText = activePlayer === pNum ? '내 턴 진행 중' : '대기 중';
-                    }
                 }
             };
 
