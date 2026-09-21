@@ -328,21 +328,26 @@
             } else if (select === 'fischer') {
                 countGroup.style.display = 'none'; incGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 추가 시간 (초)';
-                if (lastRule !== 'fischer') { mainInput.value = 900; extraInput.value = 10; } // 15분, 10초 세팅
+                if (lastRule !== 'fischer') { mainInput.value = 900; extraInput.value = 10; } 
             } else if (select === 'delay') {
                 countGroup.style.display = 'none'; incGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 유예 시간 (초)';
-                if (lastRule !== 'delay') { mainInput.value = 1500; extraInput.value = 5; } // 25분, 5초 세팅
+                if (lastRule !== 'delay') { mainInput.value = 1500; extraInput.value = 5; } 
             }
             lastRule = select;
         }
 
-        function formatNormalTime(ms) {
+        // HH:MM:SS 포맷을 문자열로 반환 (딜레이 서브 텍스트용 추가)
+        function getFormattedTimeString(ms) {
             let totalSeconds = Math.ceil(ms / 1000);
             let h = Math.floor(totalSeconds / 3600);
             let m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             let s = (totalSeconds % 60).toString().padStart(2, '0');
             return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
+        }
+        
+        function formatNormalTime(ms) {
+            return getFormattedTimeString(ms);
         }
 
         function formatDecimalTime(ms) {
@@ -553,6 +558,8 @@
 
                 let isWarning = false;
                 let warningTimeMs = 0;
+                let maxWarningTimeMs = 5000; // 색상 그라데이션은 항상 고정 5초(5000ms) 기준으로 복구
+
                 let delayTotalMs = pState.mainMs + pState.extraMs;
 
                 // 패배 임박(5초) 판단
@@ -562,7 +569,6 @@
                             isWarning = true; warningTimeMs = pState.extraMs;
                         }
                     } else if (rule === 'delay') {
-                        // 딜레이 모드: 본 시간 + 유예 시간 합쳐서 5초 이내일 때 빨간색 경고
                         if (delayTotalMs <= 5000 && delayTotalMs > 0) {
                             isWarning = true; warningTimeMs = delayTotalMs;
                         }
@@ -582,25 +588,24 @@
 
                     // 배경색 덮어쓰기 로직
                     if (isWarning) {
-                        let g = Math.floor((warningTimeMs / 5000) * 255);
+                        // 기존 알고리즘으로 복구: 남은 시간이 짧더라도 무조건 5초 기준으로 색상 계산
+                        let ratio = warningTimeMs / maxWarningTimeMs;
+                        let g = Math.floor(ratio * 255);
                         area.style.backgroundColor = `rgb(255, ${g}, 0)`;
                         area.style.color = '#000000';
                     } else if (rule === 'byoyomi' && pState.mainMs === 0) {
                         area.style.backgroundColor = '#2ecc71'; // 초록색
                         area.style.color = '#ffffff';
                     } else if (rule === 'delay' && pState.extraMs <= 0) {
-                        // 유예 시간을 다 쓰고 본 시간을 깎아먹기 시작할 때 초록색 표시
                         area.style.backgroundColor = '#2ecc71'; // 초록색
                         area.style.color = '#ffffff';
                     }
 
                     // 하단 안내 텍스트 표시
                     if (rule === 'delay') {
-                        if (pState.extraMs > 0) {
-                            subEl.innerText = `유예 시간: ${Math.ceil(pState.extraMs/1000)}초`;
-                        } else {
-                            subEl.innerText = `본 시간 소모 중 (유예 시간 소진)`;
-                        }
+                        let formattedMain = getFormattedTimeString(Math.max(0, pState.mainMs));
+                        let formattedExtra = getFormattedTimeString(Math.max(0, pState.extraMs));
+                        subEl.innerText = `기본시간: ${formattedMain} / 유예시간: ${formattedExtra}`;
                     } else if (rule === 'byoyomi' && pState.mainMs === 0) {
                         subEl.innerText = `초읽기 남은 횟수: ${pState.count}회`;
                     } else if (rule === 'tournament') {
@@ -613,11 +618,9 @@
                     area.className = 'player-area'; // 대기 중 (회색)
                     
                     if (rule === 'delay') {
-                        if (pState.extraMs > 0) {
-                            subEl.innerText = `대기 중 (유예 시간: ${Math.ceil(pState.extraMs/1000)}초)`;
-                        } else {
-                            subEl.innerText = `대기 중`;
-                        }
+                        let formattedMain = getFormattedTimeString(Math.max(0, pState.mainMs));
+                        let formattedExtra = getFormattedTimeString(Math.max(0, pState.extraMs));
+                        subEl.innerText = `대기 중 (기본시간: ${formattedMain} / 유예시간: ${formattedExtra})`;
                     } else if (rule === 'tournament') {
                         let targetText = pState.turns < pState.count ? ` / 목표: ${pState.count}` : '';
                         subEl.innerText = `대기 중 (완료 턴: ${pState.turns}${targetText})`;
@@ -626,16 +629,15 @@
                     }
                 }
 
-                // 타이머 정중앙 메인 숫자 표시 (가장 큰 숫자)
+                // 타이머 정중앙 메인 숫자 표시
                 if (isWarning) {
                     let displayMs = Math.max(0, warningTimeMs);
                     timeEl.innerText = formatDecimalTime(displayMs);
-                    timeEl.style.fontSize = '1.3em'; // 확대
+                    timeEl.style.fontSize = '1.3em'; 
                 } else {
                     if (rule === 'byoyomi' && pState.mainMs === 0) {
                         timeEl.innerText = Math.ceil(pState.extraMs / 1000);
                     } else if (rule === 'delay') {
-                        // 딜레이 모드는 본 시간 + 남은 유예 시간을 더해서 출력
                         timeEl.innerText = formatNormalTime(Math.max(0, delayTotalMs));
                     } else {
                         timeEl.innerText = formatNormalTime(Math.max(0, pState.mainMs));
