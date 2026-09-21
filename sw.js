@@ -1,4 +1,4 @@
-const CACHE_NAME = 'boardgame-timer-v7';
+const CACHE_NAME = 'boardgame-timer-v8'; // v8로 캐시 갱신
 const urlsToCache = [
   './',
   './index.html',
