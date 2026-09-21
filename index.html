@@ -94,7 +94,6 @@
             width: 100%;
         }
 
-        /* 기본 대기 상태 (회색) */
         .player-area {
             flex: 1;
             display: flex;
@@ -103,7 +102,6 @@
             align-items: center;
             font-size: 5em;
             font-weight: bold;
-            /* 부드러운 색상 전환을 위해 transition 유지 */
             transition: background 0.1s, color 0.1s; 
             background-color: #7f8c8d;
             color: rgba(255,255,255,0.5);
@@ -112,13 +110,11 @@
 
         #p1-area { transform: rotate(180deg); }
 
-        /* 활성 상태 (진행 중 - 기본 흰색) !important 제거 */
         .player-area.active {
             background-color: #ffffff;
             color: #000000;
         }
 
-        /* 승리, 패배 상태 (JS 인라인 스타일보다 낮지만 클래스로 적용) !important 제거 */
         .player-area.winner {
             background-color: #2980b9; 
             color: #ffffff;
@@ -332,11 +328,11 @@
             } else if (select === 'fischer') {
                 countGroup.style.display = 'none'; incGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 추가 시간 (초)';
-                if (lastRule !== 'fischer') { mainInput.value = 300; extraInput.value = 10; }
+                if (lastRule !== 'fischer') { mainInput.value = 900; extraInput.value = 10; } // 15분, 10초 세팅
             } else if (select === 'delay') {
                 countGroup.style.display = 'none'; incGroup.style.display = 'none';
                 extraLabel.innerText = '턴당 유예 시간 (초)';
-                if (lastRule !== 'delay') { mainInput.value = 300; extraInput.value = 10; }
+                if (lastRule !== 'delay') { mainInput.value = 1500; extraInput.value = 5; } // 25분, 5초 세팅
             }
             lastRule = select;
         }
@@ -387,8 +383,8 @@
             clearInterval(timerInterval);
             timerInterval = null;
 
-            p1 = { mainMs: config.mainMs, extraMs: rule === 'byoyomi' ? config.extraMs : 0, count: config.count, turns: 0 };
-            p2 = { mainMs: config.mainMs, extraMs: rule === 'byoyomi' ? config.extraMs : 0, count: config.count, turns: 0 };
+            p1 = { mainMs: config.mainMs, extraMs: rule === 'byoyomi' || rule === 'delay' ? config.extraMs : 0, count: config.count, turns: 0 };
+            p2 = { mainMs: config.mainMs, extraMs: rule === 'byoyomi' || rule === 'delay' ? config.extraMs : 0, count: config.count, turns: 0 };
         }
 
         function goToSettings() {
@@ -503,7 +499,14 @@
         }
 
         function checkGameOver(p) {
-            if (p.mainMs <= 0 && (rule !== 'byoyomi' || p.count <= 0)) {
+            let isGameOver = false;
+            if (rule === 'delay') {
+                if (p.mainMs <= 0 && p.extraMs <= 0) isGameOver = true;
+            } else {
+                if (p.mainMs <= 0 && (rule !== 'byoyomi' || p.count <= 0)) isGameOver = true;
+            }
+
+            if (isGameOver) {
                 clearInterval(timerInterval);
                 timerInterval = null;
                 activePlayer = -1; 
@@ -520,7 +523,6 @@
                 let timeEl = document.getElementById(`p${pNum}-time`);
                 let subEl = document.getElementById(`p${pNum}-sub`);
 
-                // 매번 인라인 스타일을 깔끔하게 초기화합니다.
                 area.style.backgroundColor = '';
                 area.style.color = '';
                 timeEl.style.fontSize = ''; 
@@ -529,12 +531,18 @@
                     content.style.display = 'none'; 
                     result.style.display = 'block'; 
 
-                    let isLoser = (pState.mainMs <= 0 && (rule !== 'byoyomi' || pState.count <= 0));
+                    let isLoser = false;
+                    if (rule === 'delay') {
+                        isLoser = (pState.mainMs <= 0 && pState.extraMs <= 0);
+                    } else {
+                        isLoser = (pState.mainMs <= 0 && (rule !== 'byoyomi' || pState.count <= 0));
+                    }
+
                     if (isLoser) {
-                        area.className = 'player-area loser'; // CSS의 .loser 배경색이 적용됨
+                        area.className = 'player-area loser'; 
                         result.innerText = '시간 패';
                     } else {
-                        area.className = 'player-area winner'; // CSS의 .winner 배경색이 적용됨
+                        area.className = 'player-area winner'; 
                         result.innerText = '시간 승';
                     }
                     return;
@@ -545,48 +553,54 @@
 
                 let isWarning = false;
                 let warningTimeMs = 0;
+                let delayTotalMs = pState.mainMs + pState.extraMs;
 
+                // 패배 임박(5초) 판단
                 if (activePlayer === pNum) {
                     if (rule === 'byoyomi') {
                         if (pState.mainMs === 0 && pState.extraMs <= 5000 && pState.extraMs > 0) {
-                            isWarning = true;
-                            warningTimeMs = pState.extraMs;
+                            isWarning = true; warningTimeMs = pState.extraMs;
                         }
                     } else if (rule === 'delay') {
-                        if (pState.extraMs <= 0 && pState.mainMs <= 5000 && pState.mainMs > 0) {
-                            isWarning = true;
-                            warningTimeMs = pState.mainMs;
+                        // 딜레이 모드: 본 시간 + 유예 시간 합쳐서 5초 이내일 때 빨간색 경고
+                        if (delayTotalMs <= 5000 && delayTotalMs > 0) {
+                            isWarning = true; warningTimeMs = delayTotalMs;
                         }
                     } else {
                         if (pState.mainMs <= 5000 && pState.mainMs > 0) {
-                            isWarning = true;
-                            warningTimeMs = pState.mainMs;
+                            isWarning = true; warningTimeMs = pState.mainMs;
                         }
                     }
                 }
 
-                // JS 인라인 스타일 부여 (CSS 클래스보다 우선순위 높음)
+                // 바탕색 및 서브 텍스트 적용
                 if (activePlayer === 0) {
                     area.className = 'player-area active';
                     subEl.innerText = '터치하여 상대 턴 시작';
                 } else if (activePlayer === pNum) {
-                    area.className = 'player-area active'; // 기본은 활성 클래스
+                    area.className = 'player-area active'; 
 
+                    // 배경색 덮어쓰기 로직
                     if (isWarning) {
-                        // 5초 미만: 노란색(255, 255, 0) -> 빨간색(255, 0, 0)
                         let g = Math.floor((warningTimeMs / 5000) * 255);
                         area.style.backgroundColor = `rgb(255, ${g}, 0)`;
                         area.style.color = '#000000';
                     } else if (rule === 'byoyomi' && pState.mainMs === 0) {
-                        // 5초 초과 남은 초읽기 상태: 초록색
-                        area.style.backgroundColor = '#2ecc71';
+                        area.style.backgroundColor = '#2ecc71'; // 초록색
                         area.style.color = '#ffffff';
-                    } else {
-                        // 활성화 턴 진행 중 (CSS .active의 흰색 유지)
+                    } else if (rule === 'delay' && pState.extraMs <= 0) {
+                        // 유예 시간을 다 쓰고 본 시간을 깎아먹기 시작할 때 초록색 표시
+                        area.style.backgroundColor = '#2ecc71'; // 초록색
+                        area.style.color = '#ffffff';
                     }
 
-                    if (rule === 'delay' && pState.extraMs > 0) {
-                        subEl.innerText = `유예 시간: ${Math.ceil(pState.extraMs/1000)}초`;
+                    // 하단 안내 텍스트 표시
+                    if (rule === 'delay') {
+                        if (pState.extraMs > 0) {
+                            subEl.innerText = `유예 시간: ${Math.ceil(pState.extraMs/1000)}초`;
+                        } else {
+                            subEl.innerText = `본 시간 소모 중 (유예 시간 소진)`;
+                        }
                     } else if (rule === 'byoyomi' && pState.mainMs === 0) {
                         subEl.innerText = `초읽기 남은 횟수: ${pState.count}회`;
                     } else if (rule === 'tournament') {
@@ -596,8 +610,15 @@
                         subEl.innerText = '내 턴 진행 중';
                     }
                 } else {
-                    area.className = 'player-area'; // 대기 중 (CSS의 회색 적용)
-                    if (rule === 'tournament') {
+                    area.className = 'player-area'; // 대기 중 (회색)
+                    
+                    if (rule === 'delay') {
+                        if (pState.extraMs > 0) {
+                            subEl.innerText = `대기 중 (유예 시간: ${Math.ceil(pState.extraMs/1000)}초)`;
+                        } else {
+                            subEl.innerText = `대기 중`;
+                        }
+                    } else if (rule === 'tournament') {
                         let targetText = pState.turns < pState.count ? ` / 목표: ${pState.count}` : '';
                         subEl.innerText = `대기 중 (완료 턴: ${pState.turns}${targetText})`;
                     } else {
@@ -605,6 +626,7 @@
                     }
                 }
 
+                // 타이머 정중앙 메인 숫자 표시 (가장 큰 숫자)
                 if (isWarning) {
                     let displayMs = Math.max(0, warningTimeMs);
                     timeEl.innerText = formatDecimalTime(displayMs);
@@ -612,6 +634,9 @@
                 } else {
                     if (rule === 'byoyomi' && pState.mainMs === 0) {
                         timeEl.innerText = Math.ceil(pState.extraMs / 1000);
+                    } else if (rule === 'delay') {
+                        // 딜레이 모드는 본 시간 + 남은 유예 시간을 더해서 출력
+                        timeEl.innerText = formatNormalTime(Math.max(0, delayTotalMs));
                     } else {
                         timeEl.innerText = formatNormalTime(Math.max(0, pState.mainMs));
                     }
